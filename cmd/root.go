@@ -20,11 +20,44 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
 	"github.com/spf13/viper"
 )
 
 var cfgFile string
+
+// We create a struct type named KeylimeConf to hold the configuration data
+type KeylimeConf struct {
+	// Map the keylime.conf INI file's fields to Go variables, remapping the original names. A nested struct is needed because of how viper unmarshals INI. WORKS
+	ApiVer string
+
+	General struct {
+		EnableTLS bool `mapstructure:"enable_TLS"`
+	}
+	Tenant struct {
+		RegistrarHost string `mapstructure:"registrar_ip"`
+		RegistrarPort int    `mapstructure:"registrar_port"`
+	}
+	Registrar struct {
+		RegistrarTLSPort int `mapstructure:"registrar_tls_port"`
+	}
+
+	Verifier struct {
+		VerifierHost string `mapstructure:"cloudverifier_ip"`
+		VerifierPort int    `mapstructure:"cloudverifier_port"`
+	}
+
+	// Trying to map the INI file's fiels to our choice of Go Variables, without using a nested struct DOESN'T WORK (Tenant is not defined)
+	// Tenant.RegistrarHost string `ini:regisrar_ip`
+	// Tenant.RegistrarPort string `ini:regisrar_port`
+	// Tenant.RegistrarTLSPort string `ini:regisrar_tls_port`
+
+	// Trying to map our choice of variable names (RegistrarPort) to the INI file's fields: tenant --> registrar_port DOESN'T WORK
+	// RegistrarURL     string `ini:"tenant.registrar_ip"`
+	// RegistrarPort    int `ini:tenant.registrar_port`
+	// RegistrarTLSPort int `registrar.registrar_tls_port`
+}
+
+var C KeylimeConf
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -35,19 +68,20 @@ var rootCmd = &cobra.Command{
 It provides acces to operations such as adding an agent, checking the status
 of an agent or a verifier, and more.
 
-To use keylime-tenant you need to have a keylime agent already running.
+To use keylime-tenant you need to have a keylime cluster already running.
 
-Find more information at github.com/keylime/keylime-tenant`,
+Find more information at github.com/axelsimon/keylime-tenant`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		//		fmt.Println("Get tls setting from config file (from cobra.Command Run):", viper.GetBool("general.enable_tls"))
 		//		fmt.Printf("viper.Getbool is of type: %T\n", viper.GetBool("general.enable_tls"))
 	},
+	Version: "0.0.1",
 }
 
 func test() {
-	fmt.Println("Get tls setting from config file:", viper.GetBool("enable_tls"))
+	fmt.Println("DEBUG: Get tls setting from config file:", viper.GetBool("enable_tls"))
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -68,6 +102,9 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+
+	// TODO: complete or remove
+	//rootCmd.SetVersionTemplate('{{with .Name}}{{printf "keylimectl - %s " .}}{{end}}{{printf "Version: %s" .Version}}')
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -101,28 +138,44 @@ func initConfig() {
 	//	fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	//}
 	if err := viper.ReadInConfig(); err != nil {
-		panic(fmt.Errorf("Fatal error using config file: %w \n", err))
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			// Config file not found; ignore error if desired
+			fmt.Fprintf(os.Stderr, "Error, default config file not found. %v\n", viper.ConfigFileUsed())
+		} else {
+			// Config file was found but another error was produced
+			panic(fmt.Errorf("Fatal error using default config file. %w \n", err))
+		}
 	} else {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	}
 
-	fmt.Println("Get tls setting from config file (from init.Config):", viper.GetBool("general.enable_tls"))
+	//fmt.Println(viper.Get("cloud_agent.cloudagent_port"))
 
-	// We create a struct type named KlConf to hold the configuration data
-	type KeylimeConf struct {
-		RegistrarURL     string
-		RegistrarPort    string
-		RegistrarTLSPort string
-	}
 	// We instantiate a struct based on the KeylimeConf type with values from Viper
-	Conf := KeylimeConf{
-		RegistrarURL:     viper.GetString("registrar.registrar_ip"),
-		RegistrarPort:    viper.GetString("registrar.registrar_port"),
-		RegistrarTLSPort: viper.GetString("registrar.registrar_tls_port"),
-	}
-	fmt.Println("RegistrarURL is (from our struct):", Conf.RegistrarURL)
+	// Conf := KeylimeConf{
+	// 	RegistrarURL:     viper.GetString("registrar.registrar_ip"),
+	// 	RegistrarPort:    viper.GetString("registrar.registrar_port"),
+	// 	RegistrarTLSPort: viper.GetString("registrar.registrar_tls_port"),
+	// }
+
 	// We could use viper.Unmarshal() here to unmarshal the values of the config
 	// into a config object of type struct we will likely create.
 	// err = viper.Unmarshal(&config)
+	err := viper.Unmarshal(&C)
+	if err != nil {
+		panic(fmt.Errorf("unable to decode into struct, %v", err))
+	}
+	C.ApiVer = "v1"
+	if C.General.EnableTLS {
+		fmt.Println("TLS enabled. Good.")
+	} else {
+		fmt.Println("WARNING: TLS  is not enabled.")
+	}
+	fmt.Println("Using API version:", C.ApiVer)
+	fmt.Printf("-----\nAre we getting a config written?\n\tWhat type?\t%T\n\tWhat value?\t%v\n\n", C, C)
+	// fmt.Println("DEBUG: RegistrarHost is (from our conf struct):", C.Tenant.RegistrarHost)
+	fmt.Println("DEBUG: RegistrarPort is (from our conf struct):", C.Tenant.RegistrarPort)
+	// fmt.Println("DEBUG: RegistrarTLSPort is (from our conf struct):", C.Registrar.RegistrarTLSPort)
+	fmt.Println("DEBUG: VerifierPort is (from our conf struct):", C.Verifier.VerifierPort)
 
 }
