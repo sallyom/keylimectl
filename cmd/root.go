@@ -33,18 +33,27 @@ type KeylimeConf struct {
 	General struct {
 		EnableTLS bool `mapstructure:"enable_TLS"`
 	}
+
+	Cloud_agent struct {
+		AgentHost string `mapstructure:"cloudagent_ip"`
+		VerifierAgentHost string `mapstructure:"cv_cloudagent"`
+		AgentPort int `mapstructure:"cloudagent_port"`
+	}
+
+	Cloud_verifier struct {
+		VerifierHost string `mapstructure:"cloudverifier_ip"`
+		VerifierPort int    `mapstructure:"cloudverifier_port"`
+	}
+	
 	Tenant struct {
 		RegistrarHost string `mapstructure:"registrar_ip"`
 		RegistrarPort int    `mapstructure:"registrar_port"`
 	}
+
 	Registrar struct {
 		RegistrarTLSPort int `mapstructure:"registrar_tls_port"`
 	}
-
-	Verifier struct {
-		VerifierHost string `mapstructure:"cloudverifier_ip"`
-		VerifierPort int    `mapstructure:"cloudverifier_port"`
-	}
+	
 
 	// Trying to map the INI file's fiels to our choice of Go Variables, without using a nested struct DOESN'T WORK (Tenant is not defined)
 	// Tenant.RegistrarHost string `ini:regisrar_ip`
@@ -55,12 +64,45 @@ type KeylimeConf struct {
 	// RegistrarURL     string `ini:"tenant.registrar_ip"`
 	// RegistrarPort    int `ini:tenant.registrar_port`
 	// RegistrarTLSPort int `registrar.registrar_tls_port`
+
+
+	// Webapp not really used. Commenting for now.
+	// Webapp struct {
+	// 	WebappHost string `mapstructure:"webapp_ip"`
+	// 	WebappPort int `mapstructure:"webapp_port"`
+	// }
+
+	// All these are used in the original tenant.py
+	// Add them to our KeylimeConf struct as needed.
+    // uuid_service_generate_locally = None
+    // agent_uuid = None
+
+    // K = None
+    // V = None
+    // U = None
+    // auth_tag = None
+
+    // tpm_policy = None
+    // vtpm_policy = {}
+    // metadata = {}
+    // allowlist = {}
+    // ima_sign_verification_keys = []
+    // revocation_key = ""
+    // accept_tpm_hash_algs = []
+    // accept_tpm_encryption_algs = []
+    // accept_tpm_signing_algs = []
+    // mb_refstate = None
+
+    // payload = None
+
+    // tpm_instance = tpm()
 }
 
 var C KeylimeConf
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
+	Version: "0.0.1",
 	Use:   "keylime-tenant",
 	Short: "A tool to interact with a Keylime cluster",
 	Long: `keylime-tenant allows a user to interact with a Keylime cluster.
@@ -77,7 +119,6 @@ Find more information at github.com/axelsimon/keylime-tenant`,
 		//		fmt.Println("Get tls setting from config file (from cobra.Command Run):", viper.GetBool("general.enable_tls"))
 		//		fmt.Printf("viper.Getbool is of type: %T\n", viper.GetBool("general.enable_tls"))
 	},
-	Version: "0.0.1",
 }
 
 func test() {
@@ -176,6 +217,7 @@ func initConfig() {
 	// fmt.Println("DEBUG: RegistrarHost is (from our conf struct):", C.Tenant.RegistrarHost)
 	fmt.Println("DEBUG: RegistrarPort is (from our conf struct):", C.Tenant.RegistrarPort)
 	// fmt.Println("DEBUG: RegistrarTLSPort is (from our conf struct):", C.Registrar.RegistrarTLSPort)
-	fmt.Println("DEBUG: VerifierPort is (from our conf struct):", C.Verifier.VerifierPort)
+	fmt.Println("DEBUG: VerifierPort is (from our conf struct):", C.Cloud_verifier.VerifierPort)
+	fmt.Println("DEBUG: end of rootCmd init\n\n")
 
 }
