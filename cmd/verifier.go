@@ -36,45 +36,46 @@ var verifierCmd = &cobra.Command{
 }
 
 func cvStatus() {
-		// Instantiate a handler for cvStatus, using config values. This might need to be scoped to the package rather than the function.
-		hdl := Handler{
-			//Scheme:           C.General.TLS,
-			Scheme: "http://",
-			Host:   C.Cloud_verifier.VerifierHost,
-			Port:   C.Cloud_verifier.VerifierPort,
-			ApiVer: C.ApiVer,
-			Path:   "agents",
-		}
-	
-		fmt.Println("Called cvStatus")
-		
-		// build cloud verifier URL
-		cvURL := hdl.buildURL()
-		klog.Infof("DEBUG: cvStatus(): What does hdl look like? %s", hdl)
-		
-		// GET on cvURL to get our response
-		resp, err := http.Get(cvURL)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer resp.Body.Close()
-		
-		// Store the body of the response (which is JSON) in a body variable.
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Fatal(err)
-		}
-		
-		// Type CvStatus is a struct to represent the JSON response sent by the verifier.
-		type CvStatus struct {
-			Code    int    `json:"code"`
-			Status  string `json:"status"`
-			Results struct {
-				UUIDs []string `json:"uuids"`
-			} `json:"results"`
-		}
-		
-		// Unmarshal the JSON status into a CvStatus Go struct
+	// Instantiate a handler for cvStatus, using config values. This might need to be scoped to the package rather than the function.
+	hdl := Handler{
+		//Scheme:           C.General.TLS,
+		Scheme: "http://",
+		Host:   C.Tenant.VerifierHost,
+		Port:   C.Tenant.VerifierPort,
+		ApiVer: C.ApiVer,
+		Path:   "agents/?verifier=",
+		//	VerifierID:
+	}
+
+	fmt.Println("Called cvStatus")
+
+	// build cloud verifier URL
+	cvURL := hdl.buildURL()
+	klog.Infof("DEBUG: cvStatus(): What does hdl look like? %s", hdl)
+
+	// GET on cvURL to get our response
+	resp, err := http.Get(cvURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Store the body of the response (which is JSON) in a body variable.
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Type CvStatus is a struct to represent the JSON response sent by the verifier.
+	type CvStatus struct {
+		Code    int    `json:"code"`
+		Status  string `json:"status"`
+		Results struct {
+			UUIDs []string `json:"uuids"`
+		} `json:"results"`
+	}
+
+	// Unmarshal the JSON status into a CvStatus Go struct
 	var cvStatus CvStatus
 	err = json.Unmarshal(body, &cvStatus)
 	if err != nil {

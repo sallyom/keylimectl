@@ -24,7 +24,6 @@ import (
 	// "net/url"
 
 	"github.com/spf13/cobra"
-
 )
 
 // statusCmd represents the status command
@@ -33,9 +32,13 @@ var statusCmd = &cobra.Command{
 	Short: "Check status of a Keylime cluster",
 	Long:  `Check the operational status of a Keylime cluster`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("DEBUG: begin run registrar status")
+		if Debug {
+			fmt.Println("DEBUG: begin run registrar status")
+		}
 		//regStatus()
-		fmt.Println("DEBUG: begin run verifier status")
+		if Debug {
+			fmt.Println("DEBUG: begin run verifier status")
+		}
 		//cvStatus()
 	},
 }
