@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "keylime-tenant/cmd"
+import "keylimectl/cmd"
 
 func main() {
 	cmd.Execute()

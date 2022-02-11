@@ -1,1 +1,5 @@
 .vscode*
+.*.swp
+*.bak
+vendor/
+keylimectl

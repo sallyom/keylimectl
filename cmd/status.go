@@ -16,16 +16,15 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
+	// "encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"net/http"
-
+	// "io/ioutil"
+	// "log"
+	// "net/http"
 	// "net/url"
 
 	"github.com/spf13/cobra"
-	"k8s.io/klog"
+
 )
 
 // statusCmd represents the status command
@@ -35,8 +34,8 @@ var statusCmd = &cobra.Command{
 	Long:  `Check the operational status of a Keylime cluster`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("DEBUG: begin run registrar status")
-		regStatus()
-		//fmt.Println("DEBUG: begin run verifier status")
+		//regStatus()
+		fmt.Println("DEBUG: begin run verifier status")
 		//cvStatus()
 	},
 }
@@ -63,74 +62,6 @@ type Handler struct {
 	Port   int
 	ApiVer string
 	Path   string
-}
-
-func regStatus() {
-	// Build a handler for a subset of our config (taken from Shiori)
-	// This should be reusable for cvlist, cvstatus, etc.
-
-	// Instantiate a handler for regStatus, using config values. This might need to be scoped to the package rather than the function.
-	hdl := Handler{
-		//Scheme:           C.General.TLS,
-		Scheme: "http://",
-		Host:   C.Tenant.RegistrarHost,
-		Port:   C.Tenant.RegistrarPort,
-		ApiVer: C.ApiVer,
-		Path:   "agents",
-	}
-
-	klog.Infof("DEBUG: What does hdl look like? %s", hdl)
-
-	// This next line is now done in its own Handler method: buildURL
-	// RegURL := Scheme + C.Tenant.RegistrarHost + ":" + string(C.Tenant.RegistrarPort) + "/" + C.ApiVer + "/" + RegPath
-	regURL := hdl.buildURL()
-
-	fmt.Printf("DEBUG: regURL = %q of type %T\n\n", regURL, regURL)
-
-	// GET on regURL to get our response
-	resp, err := http.Get(regURL)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	// Store the body of the response (which is JSON) in a body variable.
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Type RegStatus is a struct to represent the JSON response sent by the registrar.
-	type RegStatus struct {
-		Code    int    `json:"code"`
-		Status  string `json:"status"`
-		Results struct {
-			UUIDs []string `json:"uuids"`
-		} `json:"results"`
-	}
-
-	// Unmarshal the JSON status into a RegStatus Go struct
-	var rStatus RegStatus
-	err = json.Unmarshal(body, &rStatus)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Print out the relevant fields of the registrar's status
-	fmt.Println("Keylime registrar status:")
-	fmt.Println("-------")
-	fmt.Println("Status:\t\t", rStatus.Status)
-	fmt.Println("Code:\t\t", rStatus.Code)
-	fmt.Println("-------")
-	fmt.Println("Results:")
-	for _, v := range rStatus.Results.UUIDs {
-		fmt.Println("UUID:\t\t", v)
-	}
-	fmt.Println("-------")
-}
-
-func cvStatus() {
-	fmt.Println("Called cvStatus")
 }
 
 // There must be a nicer way to do this.
