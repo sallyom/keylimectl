@@ -31,18 +31,20 @@ var verifierCmd = &cobra.Command{
 	Use:   "verifier",
 	Short: "Check the status of a verifier",
 	Run: func(cmd *cobra.Command, args []string) {
+		keylimeOpts.initConfig(cmd)
 		cvStatus()
 	},
 }
 
 func cvStatus() {
+	klog.Infof("KEYLIMEOPTS: %v", keylimeOpts)
 	// Instantiate a handler for cvStatus, using config values. This might need to be scoped to the package rather than the function.
 	hdl := Handler{
-		//Scheme:           C.General.TLS,
+		//Scheme:           keylimeOpts.Config.General.TLS,
 		Scheme: "http://",
-		Host:   C.Tenant.VerifierHost,
-		Port:   C.Tenant.VerifierPort,
-		ApiVer: C.ApiVer,
+		Host:   keylimeOpts.Config.Tenant.VerifierHost,
+		Port:   keylimeOpts.Config.Tenant.VerifierPort,
+		ApiVer: keylimeOpts.Config.ApiVer,
 		Path:   "agents/?verifier=",
 		//	VerifierID:
 	}
@@ -66,17 +68,8 @@ func cvStatus() {
 		log.Fatal(err)
 	}
 
-	// Type CvStatus is a struct to represent the JSON response sent by the verifier.
-	type CvStatus struct {
-		Code    int    `json:"code"`
-		Status  string `json:"status"`
-		Results struct {
-			UUIDs []string `json:"uuids"`
-		} `json:"results"`
-	}
-
 	// Unmarshal the JSON status into a CvStatus Go struct
-	var cvStatus CvStatus
+	var cvStatus RegStatusList
 	err = json.Unmarshal(body, &cvStatus)
 	if err != nil {
 		log.Fatal(err)
@@ -88,22 +81,8 @@ func cvStatus() {
 	fmt.Println("Code:\t\t", cvStatus.Code)
 	fmt.Println("-------")
 	fmt.Println("Results:")
-	for _, v := range cvStatus.Results.UUIDs {
+	for _, v := range cvStatus.Results.uuids {
 		fmt.Println("UUID:\t\t", v)
 	}
 	fmt.Println("-------")
-}
-
-func init() {
-	statusCmd.AddCommand(verifierCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// verifierCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// verifierCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

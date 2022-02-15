@@ -15,7 +15,9 @@ limitations under the License.
 */
 package main
 
-import "keylimectl/cmd"
+import (
+	"keylimectl/cmd"
+)
 
 func main() {
 	cmd.Execute()

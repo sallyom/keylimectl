@@ -32,31 +32,9 @@ var statusCmd = &cobra.Command{
 	Short: "Check status of a Keylime cluster",
 	Long:  `Check the operational status of a Keylime cluster`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if Debug {
-			fmt.Println("DEBUG: begin run registrar status")
-		}
-		//regStatus()
-		if Debug {
-			fmt.Println("DEBUG: begin run verifier status")
-		}
-		//cvStatus()
+		keylimeOpts.initConfig(cmd)
 	},
 }
-
-// OUTLINE:
-// status = regstatus + cv status, so need reg response + cv response
-// planned command and subcommands: keylimectl status (all), keylmectl status register and keylimectl status (cloud)verifier?
-// check for error codes: 404
-// use a timeout:
-// timeout := time.Duration(5 * time.Second)
-// client := http.Client{
-//     Timeout: timeout,
-// }
-// client.Get(url)
-// check errors:
-// err := http.net
-// log inconsistency in responses between reg and cv
-// return reg response and cv response
 
 // Handler type is a struct to hold our configuration elements, from which to build the requested URL.
 type Handler struct {
@@ -70,24 +48,4 @@ type Handler struct {
 // There must be a nicer way to do this.
 func (h *Handler) buildURL() string {
 	return h.Scheme + h.Host + ":" + fmt.Sprint(h.Port) + "/" + h.ApiVer + "/" + h.Path
-}
-
-func init() {
-	rootCmd.AddCommand(statusCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command and all subcommands, e.g.:
-	// We use Persistent Flags to pass them down to the "status verifier" and "status registrar" commands
-	// statusCmd.PersistentFlags().StringP("registrar-host", "rh", "127.0.0.1", "the hostname or IP address of the registrar to query")
-	// statusCmd.PersistentFlags().StringP("registrar-port", "rp", "8891", "the port of the registrar to query")
-	// statusCmd.PersistentFlags().StringP("verifier-host", "vh", "127.0.0.1", "the hostname or IP address of the verifier to query")
-	// statusCmd.PersistentFlags().StringP("verifier-port", "vp", "8881", "the port of the verifier to query")
-	// statusCmd.PersistentFlags().StringP("verifier-id", "vi", "", "the unique identifier of a cloud verifier to query")
-	// TODO: use PersistentFlags().String or PersistentFlags().StringVarP ?
-	//statusCmd.PersistentFlags().StringVarP(&verifierhost, "verifier-host", "vh", "127.0.0.1", "the hostname or IP address of the registrar to query")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	statusCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

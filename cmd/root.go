@@ -18,6 +18,7 @@ package cmd
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -31,17 +32,26 @@ import (
 )
 
 const (
-	envPrefix = "KEYLIMECTL"
+	envPrefix  = "KEYLIMECTL"
+	keylimeCmd = "keylimectl"
 )
 
-// KeylimeOptions is a struct to hold needed variables.
-var (
-	Debug   bool
-	cfgFile string
-	apiVer  string
-	Client  http.Client
-	tlsDir  string
-)
+// StatusOptions is a struct to hold needed variables.
+type KeylimeOptions struct {
+	Debug    bool
+	Client   http.Client
+	Config   *KeylimeConf
+	insecure bool
+	cfgFile  string
+	apiVer   string
+	tlsDir   string
+	scheme   string
+	uuid     string
+}
+
+func NewKeylimeOptions() *KeylimeOptions {
+	return &KeylimeOptions{}
+}
 
 // KeylimeConf is a struct to hold configuration data.
 type KeylimeConf struct {
@@ -112,12 +122,14 @@ type KeylimeConf struct {
 }
 
 // Instantiate a variable C of type KeylimeConf. We will unmarshall the .ini config into C.
-var C KeylimeConf
+func NewKeylimeConf() *KeylimeConf {
+	return &KeylimeConf{}
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Version: "0.0.2",
-	Use:     "keylimectl",
+	Use:     keylimeCmd,
 	Short:   "A tool to interact with a Keylime cluster",
 	Long: `keylimectl allows a user to interact with a Keylime cluster.
 	
@@ -127,133 +139,126 @@ of an agent or a verifier, and more.
 To use keylimectl you need to have a keylime cluster already running.
 
 Find more information at github.com/axelsimon/keylimectl`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	Run: func(cmd *cobra.Command, args []string) {},
+	Run: func(cmd *cobra.Command, args []string) {
+		keylimeOpts.initConfig(cmd)
+	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// Execute adds all child commands to the root command and sets flags
+// appropriately. This is called by main.main(). It only needs to happen once to
+// the rootCmd.
 func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
 }
 
+var keylimeOpts *KeylimeOptions
+
 func init() {
-	cobra.OnInitialize(initConfig)
+	rootCmd.AddCommand(statusCmd)
+	statusCmd.AddCommand(registrarCmd)
+	statusCmd.AddCommand(verifierCmd)
+	keylimeOpts = NewKeylimeOptions()
+	cmdGroup := []*cobra.Command{
+		rootCmd,
+		statusCmd,
+		verifierCmd,
+		registrarCmd,
+	}
+	for _, cmd := range cmdGroup {
+		keylimeOpts.bindFlags(cmd)
+	}
+}
 
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	rootCmd.PersistentFlags().BoolVar(&Debug, "debug", false, "Switch debug comments on or off")
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "/etc/keylime.conf", "Config file to use")
-	rootCmd.PersistentFlags().StringVar(&apiVer, "api-version", "v1", "Keylime API version to use")
-	rootCmd.PersistentFlags().StringVar(&tlsDir, "tls-dir", "/var/lib/keylime/cv_ca/", "Base TLS directory")
-	// rootCmd.PersistentFlags().StringVar(&myCert, "client-cert", "", "Client TLS certificate")
-	// rootCmd.PersistentFlags().StringVar(&privKey, "private-key", "", "Client TLS private key")
-	// rootCmd.PersistentFlags().StringVar(&caCert, "ca-cert", "", "Certificate Authority (CA) root certificate")
+func (opts *KeylimeOptions) bindFlags(cmd *cobra.Command) {
+	flags := cmd.Flags()
+	flags.BoolVar(&opts.insecure, "insecure", false, "Disable TLS verification")
+	flags.BoolVar(&opts.Debug, "debug", false, "Switch debug comments on or off")
+	flags.StringVar(&opts.cfgFile, "config", "/etc/keylime.conf", "Config file to use")
+	flags.StringVar(&opts.apiVer, "api-version", "v1", "Keylime API version to use")
+	flags.StringVar(&opts.tlsDir, "tls-dir", "", "Base TLS directory")
+	// TODO: Can this be included in the keylime.conf file?
+	flags.StringVar(&opts.uuid, "agent-uuid", "", "Agent uuid to query")
+	// rootCmd.PersistentFlags().StringP(&myCert, "client-cert", "", "Client TLS certificate")
+	// rootCmd.PersistentFlags().StringP(&privKey, "private-key", "", "Client TLS private key")
+	// rootCmd.PersistentFlags().StringP(&caCert, "ca-cert", "", "Certificate Authority (CA) root certificate")
+	cmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolP("testflag", "t", false, "Help message for testflag")
-
-	// TODO: complete or remove improved version flag
-	//rootCmd.SetVersionTemplate('{{with .Name}}{{printf "keylimectl - %s " .}}{{end}}{{printf "Version: %s" .Version}}')
-	// Iinitialise mutual TLS configuration
-	cobra.OnInitialize(initmTLS)
+	flags.BoolP("testflag", "t", false, "Help message for testflag")
 }
 
 // initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	// Initialise an instance of a viper conf
-	v := viper.New()
-
-	if cfgFile != "" {
-		// Use config file passed from the --config flag.
-		// We can't use viper.SetConfigFile directly, as it extrapolates type from extension, and keylime.conf is not .ini
-		// viper.SetConfigFile(cfgFile)
-		// Retrieve directory and base from cfgFile string and pass them to viper, and directly specify config type as INI.
-		flagConfigDir := filepath.Dir(cfgFile)
-		flagConfigName := filepath.Base(cfgFile)
-		v.AddConfigPath(flagConfigDir)
-		v.SetConfigName(flagConfigName)
-		v.SetConfigType("ini")
-
-		// Keylimectl doesn't load a configuration from the home dir.
-		// Disabling for now.
-		//	} else {
-		//		// Find home directory.
-		//		home, err := os.UserHomeDir()
-		//		cobra.CheckErr(err)
-		//
-		//		// Search config in home directory with name "keylime.conf" (without extension).
-		//		viper.SetConfigType("ini")
-		//		viper.AddConfigPath(home)
-		//		viper.SetConfigName("keylime.conf")
-
-		// Not needed, as the flag has a default.
-		// } else {
-		// 	// Use default config from /etc/keylime.conf, specifying an ini filetype, since the .conf extension does't let viper know what type of file it is.
-		// 	viper.SetConfigType("ini")
-		// 	viper.AddConfigPath("/etc/")
-		// 	viper.SetConfigName("keylime.conf")
+func (o *KeylimeOptions) initConfig(cmd *cobra.Command) {
+	if cmd.Name() == keylimeCmd || cmd.Parent().Name() == keylimeCmd {
+		cmd.Help()
+		os.Exit(0)
 	}
-	// Set the environment prefix that Viper should expect
+	v := viper.New()
+	if o.cfgFile == "" {
+		o.cfgFile = "/etc/keylime.conf"
+	}
+	flagConfigDir := filepath.Dir(o.cfgFile)
+	flagConfigName := filepath.Base(o.cfgFile)
+	v.AddConfigPath(flagConfigDir)
+	v.SetConfigName(flagConfigName)
+	v.SetConfigType("ini")
+
 	v.SetEnvPrefix(envPrefix)
-	// Read in environment variables that match
 	v.AutomaticEnv()
 
 	// If a config file is found, read it in.
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// Config file not found; ignore error if desired
-			fmt.Fprintf(os.Stderr, "Error, default config file not found. %v\n", v.ConfigFileUsed())
+			fmt.Fprintf(os.Stderr, "Error, keylime config file %s not found. %v\n", o.cfgFile, v.ConfigFileUsed())
 		} else {
 			// Config file was found but another error was produced
-			panic(fmt.Errorf("Fatal error using default config file. %w \n", err))
+			cobra.CheckErr(fmt.Errorf("Fatal error using default config file. %w \n", err))
 		}
 	} else {
 		fmt.Fprintln(os.Stderr, "Using config file:", v.ConfigFileUsed())
 	}
 
 	// Make Viper unmarshal the values of the config file into C, a config struct of type KeylimeConf.
-	err := v.Unmarshal(&C)
-	if err != nil {
-		panic(fmt.Errorf("Unable to parse configuration into internal keylimectl struct, %v", err))
+	C := NewKeylimeConf()
+	if err := v.Unmarshal(&C); err != nil {
+		cobra.CheckErr(fmt.Errorf("Unable to parse configuration into internal keylimectl struct, %v", err))
 	}
+	o.Config = C
 
-	// Bind the current command's flags to viper
-	// bindFlags(cmd, v)
-
+	o.Config.ApiVer = o.apiVer
 	// Print security warning regarding TLS.
-	if C.General.EnableTLS {
-		fmt.Println("TLS enabled. Good.")
-	} else {
+	fmt.Println("Using API version:", o.Config.ApiVer)
+	if o.insecure {
 		fmt.Println("WARNING: TLS is not enabled.")
+		o.Config.General.EnableTLS = false
+	} else {
+		o.Config.General.EnableTLS = true
+		fmt.Println("TLS enabled. Good.")
+		o.initmTLS()
 	}
-	// keylime.conf desn't actually define ApiVer, but we have a default from the --api-version flag and set it up here.
-	C.ApiVer = apiVer
-	fmt.Println("Using API version:", C.ApiVer)
-
-	if Debug {
+	o.setTLS()
+	if o.Debug {
 		// TO DELETE: debug help
-		fmt.Printf("\n\n-----\nDEBUG: Are we getting a KeylimeConf config written?\n\tWhat type?\t%T\n\tWhat value?\t%v\n\n", C, C)
-		// fmt.Println("DEBUG: RegistrarHost is (from our conf struct):", C.Tenant.RegistrarHost)
-		fmt.Println("DEBUG: RegistrarPort is (from our conf struct):", C.Tenant.RegistrarPort)
-		// fmt.Println("DEBUG: RegistrarTLSPort is (from our conf struct):", C.Registrar.RegistrarTLSPort)
-		fmt.Println("DEBUG: VerifierPort is (from our conf struct):", C.Cloud_verifier.VerifierPort)
-		fmt.Println("DEBUG: CaCert is (from our conf struct):", C.Tenant.CACert)
-		fmt.Println("DEBUG: MyCert is (from our conf struct):", C.Tenant.MyCert)
-		fmt.Println("DEBUG: end of rootCmd init")
+		fmt.Printf("\n\n-----\nDEBUG: Are we getting a KeylimeConf config written?\n\tWhat type?\t%T\n\tWhat value?\t%v\n\n", o.Config, o.Config)
+		// fmt.Println("DEBUG: RegistrarHost is (from our conf struct):", o.Config.Tenant.RegistrarHost)
+		fmt.Println("DEBUG: RegistrarPort is (from our conf struct):", o.Config.Tenant.RegistrarPort)
+		// fmt.Println("DEBUG: RegistrarTLSPort is (from our conf struct):", o.Config.Registrar.RegistrarTLSPort)
+		fmt.Println("DEBUG: VerifierPort is (from our conf struct):", o.Config.Cloud_verifier.VerifierPort)
+		fmt.Println("DEBUG: CaCert is (from our conf struct):", o.Config.Tenant.CACert)
+		fmt.Println("DEBUG: MyCert is (from our conf struct):", o.Config.Tenant.MyCert)
+		fmt.Println("DEBUG: end of command init")
 		fmt.Println("-----\n\n")
 	}
 }
 
-func initmTLS() {
-	C.Tenant.TLSDir = tlsDir
-	C.Tenant.MyCert = tlsDir + "/" + "client-cert.crt"
-	C.Tenant.PrivKey = tlsDir + "/" + "client-private.pem"
-	C.Tenant.CACert = tlsDir + "/" + "cacert.crt"
+func (o *KeylimeOptions) initmTLS() {
+	C := o.Config
+	C.Tenant.TLSDir = o.tlsDir
+	C.Tenant.MyCert = o.tlsDir + "/" + "client-cert.crt"
+	C.Tenant.PrivKey = o.tlsDir + "/" + "client-private.pem"
+	C.Tenant.CACert = o.tlsDir + "/" + "cacert.crt"
 
 	// keylime.conf can define tls_dir as "default" (which means use cv_ca dir). We need to manage this case where tlsDir == "default" rathen than an actual path.
 	// If the --tls-dir flags passes its default ("/var/lib/keylime/cv_va"), use , otherwise set TLSDir in our KeylimeConf struct C to the value passed.
@@ -303,16 +308,25 @@ func initmTLS() {
 			TLSClientConfig: &tls.Config{
 				Certificates:       []tls.Certificate{cert},
 				RootCAs:            caCertPool,
-				InsecureSkipVerify: true, //InsecureSkipVerify does not appear to work here
+				InsecureSkipVerify: !C.General.EnableTLS, //InsecureSkipVerify does not appear to work here
 				ServerName:         "keylime",
 			},
 		},
 	}
 
 	// TO DELETE before prod
-	if Debug {
+	if o.Debug {
 		//klog.Infof("DEBUG: mTLS: What does Client look like? %s\n\n", Client)
 		klog.Infof("DEBUG: mTLS: What does Client Transport look like? %s\n\n", Client.Transport)
 		//klog.Infof("DEBUG: mTLS: What does caCertPool look like? %s\n\n", caCertPool)
+	}
+}
+
+func (o *KeylimeOptions) setTLS() {
+	if o.Config != nil {
+		o.scheme = "https://"
+		if !o.Config.General.EnableTLS {
+			o.scheme = "http://"
+		}
 	}
 }
